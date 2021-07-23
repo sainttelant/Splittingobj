@@ -841,12 +841,13 @@ int main()
 			}
 			else
 			{
-				rectangle(orig_img, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
+				//rectangle(orig_img, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
 				/*	m_BBtemp.x = boundRect[i].x;
 					m_BBtemp.y = boundRect[i].y;
 					m_BBtemp.w = boundRect[i].width;
 					m_BBtemp.h = boundRect[i].height;
 					m_BBtemp.score = 1;
+					m_BBtemp.m_status = UnkownObj;
 					v_bbnd.push_back(m_BBtemp);*/
 				//circle(orig_img, Point(box[i].center.x, box[i].center.y), 5, Scalar(0, 255, 0), -1, 8);
 				box[i].points(m_rect);
@@ -856,22 +857,68 @@ int main()
 				m_BBtemp.w = m_rect[1].x - m_rect[0].x;
 				m_BBtemp.h = m_rect[2].y - m_rect[1].y;
 				m_BBtemp.score = 1;
+				m_BBtemp.m_status = UnkownObj;
 				v_bbnd.push_back(m_BBtemp);
 
 
 				// keep 最小外接矩形
 				for (int j = 0; j < 4; j++)
 				{
-					//line(orig_img, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 100, 255), 2, 8);
+					//line(orig_img, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
 				}
 			}
 		}
 
 		// 做一把Yolo和背景法合并filter
 		// step one ,先匹配遍历运动目标与yolo的探测
-		
 
+		char yichu[255];
+		for (int i =0; i<v_bbnd.size();i++)
+		{
+			int indexofmatch = highestIOU(v_bbnd[i], yolov5_currentobj);
+			// 判断是否运动物体与yolov5 结果粘连，如果是，则不计入最终追踪iou
+			if (indexofmatch != -1 \
+				&& intersectionOverUnion(v_bbnd[i], yolov5_currentobj[indexofmatch]) >= 0.05)
+			{
+				v_bbnd[i].m_status = Ejected;
+				rectangle(orig_img,
+					Point(v_bbnd[i].x, v_bbnd[i].y),
+					Point(v_bbnd[i].x + v_bbnd[i].w,
+						v_bbnd[i].y + v_bbnd[i].h),
+					Scalar(0, 150, 50), 2, 8);
 
+				sprintf(yichu, "Ejected");
+
+				cv::putText(orig_img, yichu,
+					cv::Point((v_bbnd[i].x + v_bbnd[i].w - v_bbnd[i].w / 2) - 30,
+						v_bbnd[i].y + v_bbnd[i].h + 10),
+					1,
+					1.2,
+					Scalar(0, 150, 50),
+					1.2, LINE_4);
+
+				v_bbnd.erase(v_bbnd.begin() + i);
+			}
+			else
+			{
+				v_bbnd[i].m_status = Suspected;
+				rectangle(orig_img,
+					Point(v_bbnd[i].x, v_bbnd[i].y),
+					Point(v_bbnd[i].x + v_bbnd[i].w,
+						v_bbnd[i].y + v_bbnd[i].h),
+					Scalar(0, 150, 50), 2, 8);
+
+				sprintf(yichu, "Suspected");
+
+				cv::putText(orig_img, yichu,
+					cv::Point((v_bbnd[i].x + v_bbnd[i].w - v_bbnd[i].w / 2) - 30,
+						v_bbnd[i].y + v_bbnd[i].h + 10),
+					1,
+					1.2,
+					Scalar(150, 0, 50),
+					1.2, LINE_4);
+			}
+		}
 		// 每帧循坏，将v_bbnd放入到嵌套vv中；
 		vv_detections.push_back(v_bbnd);
 
@@ -914,7 +961,7 @@ int main()
 				case Stopping:
 					s_status = "Stopping";
 					sprintf_s(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					cv::putText(orig_img, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
+					//cv::putText(orig_img, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
 					break;
 				case Splittingobj:
 					s_status = "Splittingobj";

@@ -9,6 +9,13 @@
 /******************************************************************************
 * STRUCTS
 ******************************************************************************/
+
+enum ObjectStatus
+{
+	Suspected,
+	Ejected,
+	UnkownObj
+};
 struct BoundingBox
 {
 	// x-component of top left coordinate
@@ -21,8 +28,9 @@ struct BoundingBox
 	float h;
 	// score of the box;
 	float score;
-	
+	ObjectStatus m_status;
 };
+
 
 enum TrackStatus
 {
