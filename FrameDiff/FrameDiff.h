@@ -11,7 +11,7 @@ class Anomaly
 {
 	public:	
 		Anomaly();
-		Anomaly(cv::Mat m_background, ObjectStatus m_status);
+		explicit Anomaly(cv::Mat m_background, ObjectStatus m_status);
 		virtual ~Anomaly();
 
 		// 重写个等号，方便以后抛洒物match之类的使用

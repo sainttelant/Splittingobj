@@ -163,10 +163,10 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 	}
 
 	cv::Mat frameDifference, absFrameDifferece;
-	cv::Mat previousGrayFrame = image2_gary.clone();
+	
 	//图1减图2
 	subtract(image1_gary, image2_gary, frameDifference, cv::Mat(), CV_16SC1);
-
+	//subtract(image1_gary, image2_gary, frameDifference, cv::Mat(), CV_8UC1);
 	//取绝对值
 	absFrameDifferece = abs(frameDifference);
 
@@ -199,9 +199,12 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 	// 需要在这里进行交并集去掉yolov5探测的目标
 
 	std::vector<BoundingBox> v_temp;
+	cv::Rect finalresult(0,0,0,0);
+	char yichu[255];
 
 	for (int index = 0; index < contours.size(); index++)
 	{
+		
 		approxPolyDP(cv::Mat(contours[index]), contours_poly[index], 3, true);
 		cv::Rect rect = cv::boundingRect(cv::Mat(contours_poly[index]));
 		BoundingBox tempresults;
@@ -209,62 +212,50 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 		tempresults.y = rect.y;
 		tempresults.w = rect.width;
 		tempresults.h = rect.height;
-		v_temp.push_back(tempresults);
-		//Suspectedobj.push_back(rect);
-		//cv::rectangle(CurrentFrame, rect, cv::Scalar(0, 255, 0), 2);
-	}
 
 
-
-	// 移除相交的objs
-	
-	char yichu[255];
-	for (int i = 0; i < v_temp.size(); i++)
-	{
-		cv::Rect finalresult;
-		int indexofmatch = highestIOU(v_temp[i], yolov5);
+		int indexofmatch = highestIOU(tempresults, yolov5);
 		// 判断是否运动物体与yolov5 结果粘连，如果是，则不计入最终追踪iou
 		if (indexofmatch != -1 \
-			&& intersectionOverUnion(v_temp[i], yolov5[indexofmatch]) >= 0.05)
+			&& intersectionOverUnion(tempresults, yolov5[indexofmatch]) >= 0.05)
 		{
-			v_temp[i].m_status = Ejected;
+			tempresults.m_status = Ejected;
 			rectangle(CurrentFrame,
-				Point(v_temp[i].x, v_temp[i].y),
-				Point(v_temp[i].x + v_temp[i].w,
-					v_temp[i].y + v_temp[i].h),
+				Point(tempresults.x, tempresults.y),
+				Point(tempresults.x + tempresults.w,
+					tempresults.y + tempresults.h),
 				Scalar(0, 255, 0), 2, 8);
 
 			sprintf(yichu, "Ejected");
 
 			cv::putText(CurrentFrame, yichu,
-				cv::Point((v_temp[i].x + v_temp[i].w - v_temp[i].w / 2) - 30,
-					v_temp[i].y + v_temp[i].h + 10),
+				cv::Point((tempresults.x + tempresults.w - tempresults.w / 2) - 30,
+					tempresults.y + tempresults.h + 10),
 				1,
 				1.2,
 				Scalar(0, 255, 0),
 				1.2, LINE_4);
-
-			v_temp.erase(v_temp.begin() + i);
+			//v_temp.erase(v_temp.begin() + i);
 		}
 		else
 		{
-			v_temp[i].m_status = Suspected;
-			finalresult.x = (int)v_temp[i].x;
-			finalresult.x = (int)v_temp[i].y;
-			finalresult.width = (int)v_temp[i].w;
-			finalresult.height = (int)v_temp[i].h;
-			if (finalresult.width > 10 && finalresult.height > 10)
+			tempresults.m_status = Suspected;
+			finalresult.x = (int)tempresults.x;
+			finalresult.x = (int)tempresults.y;
+			finalresult.width = (int)tempresults.w;
+			finalresult.height = (int)tempresults.h;
+			if (finalresult.width > 10 && finalresult.height > 20)
 			{
 				Suspectedobj.push_back(finalresult);
 				sprintf(yichu, "Suspected");
 				rectangle(CurrentFrame,
-					Point(v_temp[i].x, v_temp[i].y),
-					Point(v_temp[i].x + v_temp[i].w,
-						v_temp[i].y + v_temp[i].h),
+					Point(tempresults.x, tempresults.y),
+					Point(tempresults.x + tempresults.w,
+						tempresults.y + tempresults.h),
 					Scalar(0, 0, 255), 2, 8);
 				cv::putText(CurrentFrame, yichu,
-					cv::Point((v_temp[i].x + v_temp[i].w - v_temp[i].w / 2) - 35,
-						v_temp[i].y + v_temp[i].h + 15),
+					cv::Point((tempresults.x + tempresults.w - tempresults.w / 2) - 35,
+						tempresults.y + tempresults.h + 15),
 					1,
 					1.2,
 					Scalar(0, 0, 255),
@@ -274,18 +265,26 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 			{
 				continue;
 			}
-			
+
 		}
+		//Suspectedobj.push_back(rect);
+		//cv::rectangle(CurrentFrame, rect, cv::Scalar(0, 255, 0), 2);
 	}
 
 
+
+	// 移除相交的objs
+	//for (int i = 0; i < v_temp.size(); i++)
+	//{
+	//	cv::Rect finalresult;
+	//	
+	//}
 
 	imshow("效果图", CurrentFrame);
 	cv::waitKey(5);
 	if (Suspectedobj.empty())
-	4
+	{
 		return false;
 	}
 	return true;
-
 }

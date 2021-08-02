@@ -19,7 +19,10 @@
 #include "../FrameDiff/FrameDiff.h"
 
 #define yolov5 0
+#define debug 0
 
+#define RESIZE_WIDTH 960
+#define RESIZE_HEIGHT 720
 using namespace cv;
 //using namespace std;
 
@@ -438,7 +441,7 @@ int main_01()
 	capture.read(orig_img);
 	//orig_img = cv::imread("../data/back1.jpg");
 	
-	cv::resize(orig_img, orig_img, cv::Size(960, 720));
+	cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT));
 	cv::cvtColor(orig_img, orig_img, cv::COLOR_BGR2YCrCb);
 	//cv::GaussianBlur(orig_img, orig_img, cv::Size(3,3), 3.0);
 
@@ -571,7 +574,7 @@ int main_01()
 		}
 		else
 		{
-			cv::resize(orig_img, orig_img, cv::Size(960, 720));
+			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT));
 		}
 		//break;
 		int count = 0;
@@ -1016,10 +1019,12 @@ int main()
 	read_detections(infile, yolov5_detections);
 
 
-	cv::resize(background, background, cv::Size(960, 720));
+	cv::resize(background, background, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT));
 	// 这里使用copyto 速率更快，比clone好
-	cv::Mat drawimg(720, 960, CV_8UC3);
+	cv::Mat drawimg(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
 	background.copyTo(drawimg);
+
+
 	// 画出roi区域
 	cv::line(drawimg, cv::Point(424, 264), cv::Point(524, 264), cv::Scalar(0, 255, 0), 2, 0);
 	cv::line(drawimg, cv::Point(424, 264), cv::Point(331, 474), cv::Scalar(0, 255, 0), 2, 0);
@@ -1057,7 +1062,7 @@ int main()
 	std::vector<std::vector<Point> > contours;
 	contours.push_back(contour);
 	cv::drawContours(mask, contours, -1, cv::Scalar::all(255), CV_FILLED);
-	cv::Mat backgroundroi(720, 960, CV_8UC1);
+	cv::Mat backgroundroi(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
 	
 	// copyto 只花费 0.0003s,可以使用
 	background.copyTo(backgroundroi, mask);
@@ -1071,8 +1076,7 @@ int main()
 	Anomaly m_test(backgroundroi, status);
 
 	//cv::Point p11(495, 404);
-	//bool inside = m_test.PointsinRegion(p11, contour);
-	//printf("p(%d,%d) is inside(%d) \n", p11.x, p11.y, inside);
+
 	int framenum = 0;
 	while (1)
 	{
@@ -1089,8 +1093,8 @@ int main()
 
 
 		cv::Mat frames;
-		cv::Mat frameroi(720, 960, CV_8UC1);
-		cv::Mat cleanframe(720, 960, CV_8UC1);
+		cv::Mat frameroi(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
+		cv::Mat cleanframe(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
 		std::vector<cv::Rect> m_Suspectedobj;
 		m_Suspectedobj.clear();
 		duration = static_cast<double>(cv::getTickCount());
@@ -1103,7 +1107,7 @@ int main()
 		}
 		else
 		{
-			cv::resize(frames, frames, cv::Size(960, 720));
+			cv::resize(frames, frames, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT));
 		}
 		duration2 = static_cast<double>(cv::getTickCount()) - duration;
 		duration2 /= cv::getTickFrequency();
@@ -1112,17 +1116,17 @@ int main()
 		frames.copyTo(frameroi, mask);
 		frames.copyTo(cleanframe, mask);
 
+
+
 		// 搞出来yolov5的探测结果, 注意： frameroi只是用来描画出来看的
 		std::vector<BoundingBox>::iterator iters_b = yolov5obj.begin();
 		std::vector<BoundingBox>::iterator iter_e = yolov5obj.end();
-
+		std::vector<cv::Point> yolov5Points;
+		char insidezifu[256];
 		bool updateback = true;
 		int iternum = 0;
 		for (; iters_b != iter_e; iters_b++)
 		{
-			
-			std::vector<cv::Point> yolov5Points;
-			char insidezifu[256];
 			yolov5Points.clear();
 			iternum++;
 			cv::Point zuoshang, youxia;
@@ -1130,11 +1134,11 @@ int main()
 			zuoshang.y = (int)iters_b->y;
 			youxia.x = (int)iters_b->x + (int)iters_b->w;
 			youxia.y = (int)iters_b->y + (int)iters_b->h;
-			
+
 			cv::Point topleft, topright, bottomleft, bottomright;
 			topleft.x = (int)iters_b->x;
 			topleft.y = (int)iters_b->y;
-			topright.x = (int)iters_b->x+ (int)iters_b->w;
+			topright.x = (int)iters_b->x + (int)iters_b->w;
 			topright.y = (int)iters_b->y;
 			bottomleft.x = (int)iters_b->x;
 			bottomleft.y = (int)iters_b->y + (int)iters_b->h;
@@ -1146,9 +1150,11 @@ int main()
 			yolov5Points.push_back(bottomright);
 			yolov5Points.push_back(bottomleft);
 			bool insideornot = m_test.PointsinRegion(yolov5Points, contour);
-			sprintf(insidezifu, "%s",insideornot?"In":"Out");
+			sprintf(insidezifu, "%s", insideornot ? "In" : "Out");
 			if (insideornot)
 			{
+
+#if debug
 				rectangle(frameroi,
 					Point((int)iters_b->x,
 						(int)iters_b->y),
@@ -1157,17 +1163,20 @@ int main()
 					Scalar(0, 0, 255),
 					2,
 					8);
-				cv::putText(frameroi, 
+				cv::putText(frameroi,
 					insidezifu,
-					cv::Point(zuoshang.x - 20, zuoshang.y - 12), 
-					1, 
-					1.5, 
-					cv::Scalar(0, 0, 255), 
+					cv::Point(zuoshang.x - 20, zuoshang.y - 12),
+					1,
+					1.5,
+					cv::Scalar(0, 0, 255),
 					2);
+#endif		
 				updateback = false;
 			}
 			else
 			{
+
+#if debug
 				rectangle(frameroi,
 					Point((int)iters_b->x,
 						(int)iters_b->y),
@@ -1183,14 +1192,17 @@ int main()
 					1.5,
 					cv::Scalar(255, 0, 0),
 					2);
+#endif
+				
 			}
-			
+
 		}
 
 		// 这个是debug使用的，正式版本要去除
+#if debug
 		imshow("Debugframe", frameroi);
 		waitKey(3);
-
+#endif
 		// 注意： frameroi只是用来描画出来看的
 		m_test.UpdateBack(cleanframe, updateback);
 		// 做帧差显示,注意： frameroi只是用来描画出来看的
