@@ -1,7 +1,4 @@
 ﻿
-#include <opencv2\core\core.hpp>
-#include <opencv2\imgproc\imgproc.hpp>
-#include <opencv2\highgui\highgui.hpp>
 #include <iostream>
 #include <conio.h>
 #include <opencv2\features2d\features2d.hpp>
@@ -18,6 +15,8 @@
 #include <vector>
 // iou relevant
 #include "IOUT.h"
+
+#include "../FrameDiff/FrameDiff.h"
 
 #define yolov5 0
 
@@ -413,7 +412,7 @@ void removePepperNoise(Mat& mask)
 }
 
 
-int main()
+int main_01()
 {
 	// 开一个文件，将yolov5识别的结果写入
 #if yolov5
@@ -421,7 +420,7 @@ int main()
 	std::ofstream outfile("../results/yolov5.txt");
 
 #else
-	std::ifstream infile("../results/yolov5.txt");
+	std::ifstream infile("../results/yolov5_out.txt");
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
 	read_detections(infile, yolov5_detections);
 
@@ -928,6 +927,7 @@ int main()
 		{
 			//begin to iou track
 			iou_tracks = track_iou(stationary_threshold, lazy_threshold,sigma_h, sigma_iou, t_min, vv_detections);
+			std::cout << "tracks'size" << iou_tracks.size() << std::endl;
 			std::cout << "Last Track ID > " << iou_tracks.back().id << std::endl;
 		}
 		std::cout << "this is" << count4tracker << "frame" << std::endl;
@@ -1001,4 +1001,212 @@ int main()
 	system("PAUSE");
 	return 0;
 	//_getch();
+}
+
+
+int main()
+{
+	cv::Mat background = imread("../data/back.jpg");
+	cv::Mat object = imread("../data/object.jpg");
+
+	// 准备事先准备的探测结果
+
+	std::ifstream infile("../results/yolov5_out.txt");
+	std::vector< std::vector<BoundingBox> > yolov5_detections;
+	read_detections(infile, yolov5_detections);
+
+
+	cv::resize(background, background, cv::Size(960, 720));
+	// 这里使用copyto 速率更快，比clone好
+	cv::Mat drawimg(720, 960, CV_8UC3);
+	background.copyTo(drawimg);
+	// 画出roi区域
+	cv::line(drawimg, cv::Point(424, 264), cv::Point(524, 264), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(424, 264), cv::Point(331, 474), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(524, 264), cv::Point(764, 474), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(331, 474), cv::Point(2, 474), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(764, 474), cv::Point(958, 474), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(2, 474), cv::Point(2, 718), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(958, 474), cv::Point(958, 718), cv::Scalar(0, 255, 0), 2, 0);
+	cv::line(drawimg, cv::Point(2, 718), cv::Point(958, 718), cv::Scalar(0, 255, 0), 2, 0);
+
+	// 设置单通道的掩码
+
+	double duration, duration1,duration2;
+
+	Mat mask = cv::Mat::zeros(drawimg.size(), CV_8UC1);
+
+	Point p1 = { 424, 264 };  Point p2 = { 524, 264 };
+	Point p8 = { 331, 474 }; Point p3 = { 764, 474 };
+	Point p7 = { 2, 474 };  Point p4 = { 958, 474 };
+	Point p6 = { 2, 718 }; Point p5 = { 958, 718 };
+	std::vector<Point> contour;
+	contour.push_back(p1);
+	contour.push_back(p2);
+	contour.push_back(p3);
+	contour.push_back(p4);
+	contour.push_back(p5);
+	contour.push_back(p6);
+	contour.push_back(p7);
+	contour.push_back(p8);
+
+	//ceshi inside algos
+	
+
+
+	std::vector<std::vector<Point> > contours;
+	contours.push_back(contour);
+	cv::drawContours(mask, contours, -1, cv::Scalar::all(255), CV_FILLED);
+	cv::Mat backgroundroi(720, 960, CV_8UC1);
+	
+	// copyto 只花费 0.0003s,可以使用
+	background.copyTo(backgroundroi, mask);
+	
+	cv::VideoCapture capture("../data/out.mp4");
+
+
+	// Anomaly 类初始化
+	ObjectStatus status = UnkownObj;
+
+	Anomaly m_test(backgroundroi, status);
+
+	//cv::Point p11(495, 404);
+	//bool inside = m_test.PointsinRegion(p11, contour);
+	//printf("p(%d,%d) is inside(%d) \n", p11.x, p11.y, inside);
+	int framenum = 0;
+	while (1)
+	{
+		std::vector<BoundingBox> yolov5obj;
+		if (framenum < yolov5_detections.size())
+		{
+			yolov5obj = yolov5_detections[framenum];
+		}
+		else
+		{
+			printf("it is not possible!, and yolov5 detections frames are less than videos!");
+			return -1;
+		}
+
+
+		cv::Mat frames;
+		cv::Mat frameroi(720, 960, CV_8UC1);
+		cv::Mat cleanframe(720, 960, CV_8UC1);
+		std::vector<cv::Rect> m_Suspectedobj;
+		m_Suspectedobj.clear();
+		duration = static_cast<double>(cv::getTickCount());
+		if (!capture.read(frames)) {
+			break;
+			capture.release();
+			capture = cv::VideoCapture("../data/out.mp4");
+			//capture = cv::VideoCapture("../data/test.avi");
+			capture.read(frames);
+		}
+		else
+		{
+			cv::resize(frames, frames, cv::Size(960, 720));
+		}
+		duration2 = static_cast<double>(cv::getTickCount()) - duration;
+		duration2 /= cv::getTickFrequency();
+		std::cout << "\n capture and resize per frame takes \t :" << duration2 << "\t" << "s" << std::endl;
+		// 每一帧做一次roi 提取
+		frames.copyTo(frameroi, mask);
+		frames.copyTo(cleanframe, mask);
+
+		// 搞出来yolov5的探测结果, 注意： frameroi只是用来描画出来看的
+		std::vector<BoundingBox>::iterator iters_b = yolov5obj.begin();
+		std::vector<BoundingBox>::iterator iter_e = yolov5obj.end();
+
+		bool updateback = true;
+		int iternum = 0;
+		for (; iters_b != iter_e; iters_b++)
+		{
+			
+			std::vector<cv::Point> yolov5Points;
+			char insidezifu[256];
+			yolov5Points.clear();
+			iternum++;
+			cv::Point zuoshang, youxia;
+			zuoshang.x = (int)iters_b->x;
+			zuoshang.y = (int)iters_b->y;
+			youxia.x = (int)iters_b->x + (int)iters_b->w;
+			youxia.y = (int)iters_b->y + (int)iters_b->h;
+			
+			cv::Point topleft, topright, bottomleft, bottomright;
+			topleft.x = (int)iters_b->x;
+			topleft.y = (int)iters_b->y;
+			topright.x = (int)iters_b->x+ (int)iters_b->w;
+			topright.y = (int)iters_b->y;
+			bottomleft.x = (int)iters_b->x;
+			bottomleft.y = (int)iters_b->y + (int)iters_b->h;
+			bottomright.x = (int)iters_b->x + (int)iters_b->w;
+			bottomright.y = (int)iters_b->y + (int)iters_b->h;
+
+			yolov5Points.push_back(topleft);
+			yolov5Points.push_back(topright);
+			yolov5Points.push_back(bottomright);
+			yolov5Points.push_back(bottomleft);
+			bool insideornot = m_test.PointsinRegion(yolov5Points, contour);
+			sprintf(insidezifu, "%s",insideornot?"In":"Out");
+			if (insideornot)
+			{
+				rectangle(frameroi,
+					Point((int)iters_b->x,
+						(int)iters_b->y),
+					Point((int)iters_b->x + (int)iters_b->w,
+						(int)iters_b->y + (int)iters_b->h),
+					Scalar(0, 0, 255),
+					2,
+					8);
+				cv::putText(frameroi, 
+					insidezifu,
+					cv::Point(zuoshang.x - 20, zuoshang.y - 12), 
+					1, 
+					1.5, 
+					cv::Scalar(0, 0, 255), 
+					2);
+				updateback = false;
+			}
+			else
+			{
+				rectangle(frameroi,
+					Point((int)iters_b->x,
+						(int)iters_b->y),
+					Point((int)iters_b->x + (int)iters_b->w,
+						(int)iters_b->y + (int)iters_b->h),
+					Scalar(255, 0, 0),
+					2,
+					8);
+				cv::putText(frameroi,
+					insidezifu,
+					cv::Point(zuoshang.x - 20, zuoshang.y - 12),
+					1,
+					1.5,
+					cv::Scalar(255, 0, 0),
+					2);
+			}
+			
+		}
+
+		// 这个是debug使用的，正式版本要去除
+		imshow("Debugframe", frameroi);
+		waitKey(3);
+
+		// 注意： frameroi只是用来描画出来看的
+		m_test.UpdateBack(cleanframe, updateback);
+		// 做帧差显示,注意： frameroi只是用来描画出来看的
+		bool ret = m_test.FindDiff(cleanframe, yolov5obj,m_Suspectedobj);
+		duration1 = static_cast<double>(cv::getTickCount()) - duration;
+		duration1 /= cv::getTickFrequency();
+		std::cout << "\n process per frame takes \t :" << duration1<<"\t"<<"s"<<std::endl;
+		
+		framenum++;
+
+	}
+
+
+	/*imshow("backgroundroi", backgroundroi);
+	cv::imwrite("../data/back_960_720.jpg", background);
+	waitKey(0);*/
+	system("pause");
+	return 0;
 }
