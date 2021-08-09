@@ -1,8 +1,8 @@
 #include "FrameDiff.h"
 
 Anomaly::Anomaly()
-	:m_Anomaly(UnkownObj),
-	updateornot(false)
+	:updateornot(false)
+	
 {
 
 }
@@ -12,18 +12,27 @@ Anomaly::~Anomaly()
 
 }
 
-Anomaly::Anomaly(cv::Mat m_background, ObjectStatus m_status)
+Anomaly::Anomaly(cv::Mat m_background)
 {
 	imgback = m_background.clone();
-	m_Anomaly = m_status;
+	
 }
 
-Anomaly Anomaly::operator=(const Anomaly& obj)
+void Anomaly::postprocess(std::vector<std::vector<LeftObjects>>& m_cadidateset)
 {
-	Anomaly tobj;
-	tobj.imgback = obj.imgback.clone();
-	tobj.m_Anomaly = obj.m_Anomaly;
-	return tobj;
+
+	if (m_cadidateset.size()<2)
+	{
+		return;
+	}
+	for (int i =0 ; i <m_cadidateset.size();i++)
+	{
+		for (int j = 0; j < m_cadidateset[i].size(); j++)
+		{
+			//m_cadidateset[i][j]
+		}
+	}
+
 }
 
 bool Anomaly::DetectShadow(cv::Mat& src)
@@ -121,7 +130,7 @@ bool Anomaly::PointsinRegion(std::vector<cv::Point>& pt, const std::vector<cv::P
 	return false;
 }
 
-void Anomaly::UpdateBack(cv::Mat& background, bool update)
+ void Anomaly::UpdateBack(cv::Mat& background, bool update)
 {
 	if (!update)
 	{
@@ -137,8 +146,10 @@ void Anomaly::UpdateBack(cv::Mat& background, bool update)
 	}
 }
 
-bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, \
-	std::vector<cv::Rect>& Suspectedobj)
+ 
+
+ void Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, \
+	 std::vector<cv::Rect>& m_left)
 {
 	if ((imgback.rows != CurrentFrame.rows) || (imgback.cols != CurrentFrame.cols))
 	{
@@ -172,7 +183,7 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 
 	//位深的改变
 	absFrameDifferece.convertTo(absFrameDifferece, CV_8UC1, 1, 0);
-	//cv::imshow("absFrameDifferece", absFrameDifferece);
+	cv::imshow("absFrameDifferece", absFrameDifferece);
 	cv::Mat segmentation;
 
 	//阈值处理（这一步很关键，要调好二值化的值）
@@ -187,7 +198,8 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 	morphologyEx(segmentation, segmentation, cv::MORPH_CLOSE, morphologyKernel, cv::Point(-1, -1), 2, cv::BORDER_REPLICATE);
 
 	//显示二值化图片
-	//cv::imshow("segmentation", segmentation);
+	cv::imshow("segmentation", segmentation);
+
 
 	//找边界
 	std::vector< std::vector<cv::Point> > contours;
@@ -210,8 +222,8 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 		BoundingBox tempresults;
 		tempresults.x = rect.x;
 		tempresults.y = rect.y;
-		tempresults.w = rect.width;
-		tempresults.h = rect.height;
+		tempresults.width = rect.width;
+		tempresults.height = rect.height;
 
 
 		int indexofmatch = highestIOU(tempresults, yolov5);
@@ -220,17 +232,17 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 			&& intersectionOverUnion(tempresults, yolov5[indexofmatch]) >= 0.05)
 		{
 			tempresults.m_status = Ejected;
-			rectangle(CurrentFrame,
+			/*rectangle(CurrentFrame,
 				Point(tempresults.x, tempresults.y),
-				Point(tempresults.x + tempresults.w,
-					tempresults.y + tempresults.h),
-				Scalar(0, 255, 0), 2, 8);
+				Point(tempresults.x + tempresults.width,
+					tempresults.y + tempresults.height),
+				Scalar(0, 255, 0), 2, 8);*/
 
 			sprintf(yichu, "Ejected");
 
 			cv::putText(CurrentFrame, yichu,
-				cv::Point((tempresults.x + tempresults.w - tempresults.w / 2) - 30,
-					tempresults.y + tempresults.h + 10),
+				cv::Point((tempresults.x + tempresults.width - tempresults.width / 2) - 30,
+					tempresults.y + tempresults.height + 10),
 				1,
 				1.2,
 				Scalar(0, 255, 0),
@@ -241,21 +253,22 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 		{
 			tempresults.m_status = Suspected;
 			finalresult.x = (int)tempresults.x;
-			finalresult.x = (int)tempresults.y;
-			finalresult.width = (int)tempresults.w;
-			finalresult.height = (int)tempresults.h;
-			if (finalresult.width > 10 && finalresult.height > 20)
+			finalresult.y = (int)tempresults.y;
+			finalresult.width = (int)tempresults.width;
+			finalresult.height = (int)tempresults.height;
+			if (finalresult.width > 10 && finalresult.height > 10)
 			{
-				Suspectedobj.push_back(finalresult);
+				
+				m_left.push_back(finalresult);
 				sprintf(yichu, "Suspected");
-				rectangle(CurrentFrame,
+				/*rectangle(CurrentFrame,
 					Point(tempresults.x, tempresults.y),
-					Point(tempresults.x + tempresults.w,
-						tempresults.y + tempresults.h),
-					Scalar(0, 0, 255), 2, 8);
+					Point(tempresults.x + tempresults.width,
+						tempresults.y + tempresults.height),
+					Scalar(0, 0, 255), 2, 8);*/
 				cv::putText(CurrentFrame, yichu,
-					cv::Point((tempresults.x + tempresults.w - tempresults.w / 2) - 35,
-						tempresults.y + tempresults.h + 15),
+					cv::Point((tempresults.x + tempresults.width - tempresults.width / 2) - 35,
+						tempresults.y + tempresults.height + 15),
 					1,
 					1.2,
 					Scalar(0, 0, 255),
@@ -267,24 +280,5 @@ bool Anomaly::FindDiff(cv::Mat& CurrentFrame, std::vector<BoundingBox>& yolov5, 
 			}
 
 		}
-		//Suspectedobj.push_back(rect);
-		//cv::rectangle(CurrentFrame, rect, cv::Scalar(0, 255, 0), 2);
 	}
-
-
-
-	// 移除相交的objs
-	//for (int i = 0; i < v_temp.size(); i++)
-	//{
-	//	cv::Rect finalresult;
-	//	
-	//}
-
-	imshow("效果图", CurrentFrame);
-	cv::waitKey(5);
-	if (Suspectedobj.empty())
-	{
-		return false;
-	}
-	return true;
 }

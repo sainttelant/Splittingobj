@@ -106,8 +106,8 @@ void write_results(std::string& sequence, std::string& output_folder, int total_
 		{
 			line.append(to_string_with_precision(b.x) + ",");
 			line.append(to_string_with_precision(b.y) + ",");
-			line.append(to_string_with_precision(b.w) + ",");
-			line.append(to_string_with_precision(b.h) + ",");
+			line.append(to_string_with_precision(b.width) + ",");
+			line.append(to_string_with_precision(b.height) + ",");
 			line.append( std::to_string(t.start_frame+1) + "," );
 			line.append( std::to_string(t.id) );
 			// Write to files
