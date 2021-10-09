@@ -415,7 +415,7 @@ void removePepperNoise(Mat& mask)
 }
 
 
-int main_01()
+int main()
 {
 	// 开一个文件，将yolov5识别的结果写入
 #if yolov5
@@ -423,7 +423,7 @@ int main_01()
 	std::ofstream outfile("../results/yolov5.txt");
 
 #else
-	std::ifstream infile("../results/yolov5_out.txt");
+	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
 	read_detections(infile, yolov5_detections);
 
@@ -435,8 +435,45 @@ int main_01()
 	// Declare matrices to store original and resultant binary image
 	cv::Mat orig_img, bin_img;
 	
+	// 需要用mask将图抹黑
+	cv::Mat drawimg(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
+	cv::Mat cleanframe(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
+
+	// 画出roi区域,960x720的区域，等比例变成 320x300
+	double factorx = (double)RESIZE_WIDTH / 960.0;
+	double factory = (double)RESIZE_HEIGHT / 720.0;
+
+
+	// 设置单通道的掩码
+	Mat mask = cv::Mat::zeros(drawimg.size(), CV_8UC1);
+
+	Point p1(424 * factorx, 264 * factory);
+	Point p2(524 * factorx, 264 * factory);
+	Point p8(331 * factorx, 474 * factory);
+	Point p3(764 * factorx, 474 * factory);
+	Point p7(2 * factorx, 474 * factory);
+	Point p4(958 * factorx, 474 * factory);
+	Point p6(2 * factorx, 718 * factory);
+	Point p5(958 * factorx, 718 * factory);
+	std::vector<Point> contour;
+	contour.push_back(p1);
+	contour.push_back(p2);
+	contour.push_back(p3);
+	contour.push_back(p4);
+	contour.push_back(p5);
+	contour.push_back(p6);
+	contour.push_back(p7);
+	contour.push_back(p8);
+
+
+	std::vector<std::vector<Point> > contours;
+	contours.push_back(contour);
+	cv::drawContours(mask, contours, -1, cv::Scalar::all(255), CV_FILLED);
+
+		
+
 	//Declare a VideoCapture object to store incoming frame and initialize it
-	cv::VideoCapture capture("../data/out.mp4");
+	cv::VideoCapture capture("../data/out_xuewei.mp4");
 	
 	capture.read(orig_img);
 	//orig_img = cv::imread("../data/back1.jpg");
@@ -446,12 +483,16 @@ int main_01()
 	//cv::GaussianBlur(orig_img, orig_img, cv::Size(3,3), 3.0);
 
 	//Initializing the binary image with the same dimensions as original image
-	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8U, cv::Scalar(0));
+	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8UC1, cv::Scalar(0));
 
 	double value[3];
 	
-
+	
 	//Step 1: initializing with one gaussian for the first time and keeping the no. of models as 1
+
+	orig_img.copyTo(cleanframe, mask);
+	//这里将cleanframe 初始化
+
 	cv::Vec3f val;
 	uchar* r_ptr;
 	uchar* b_ptr;
@@ -577,9 +618,14 @@ int main_01()
 		{
 			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 		}
+
+		orig_img.copyTo(cleanframe, mask);
+	
+
 		//break;
 		int count = 0;
 		int count1 = 0;
+
 
 
 		N_ptr = N_start;
@@ -1005,7 +1051,7 @@ int main_01()
 }
 
 
-int main()
+int main_01()
 {
 	cv::Mat background = imread("../data/back.jpg");
 	cv::Mat object = imread("../data/object.jpg");
