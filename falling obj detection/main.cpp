@@ -33,9 +33,6 @@ const double cthr = 0.00001;
 const double alpha = 0.002;
 const double cT = 0.05;
 const double covariance0 = 11.0;
-
-// 为了消除训练中的噪声，得到B，高斯的个数，对高斯进行从到到小排序，最后去最前面的B个高斯
-// 有的说取 cf 为0.3
 const double cf = 0.1;
 const double cfbar = 1.0 - cf;
 const double temp_thr = 9.0 * covariance0 * covariance0;
@@ -47,9 +44,6 @@ int overall = 0;
 //Structure used for saving various components for each pixel
 struct gaussian
 {
-	// mean,像素均值
-	// covariance 像素的方差
-	// weight 权重
 	double mean[3], covariance;
 	double weight;								// Represents the measure to which a particular component defines the pixel value
 	gaussian* Next;
@@ -421,7 +415,7 @@ void removePepperNoise(Mat& mask)
 }
 
 
-int main()
+int main_01()
 {
 	// 开一个文件，将yolov5识别的结果写入
 #if yolov5
@@ -429,7 +423,7 @@ int main()
 	std::ofstream outfile("../results/yolov5.txt");
 
 #else
-	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
+	std::ifstream infile("../results/yolov5_out.txt");
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
 	read_detections(infile, yolov5_detections);
 
@@ -441,45 +435,8 @@ int main()
 	// Declare matrices to store original and resultant binary image
 	cv::Mat orig_img, bin_img;
 	
-	// 需要用mask将图抹黑
-	cv::Mat drawimg(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
-	cv::Mat cleanframe(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC1);
-
-	// 画出roi区域,960x720的区域，等比例变成 320x300
-	double factorx = (double)RESIZE_WIDTH / 960.0;
-	double factory = (double)RESIZE_HEIGHT / 720.0;
-
-
-	// 设置单通道的掩码
-	Mat mask = cv::Mat::zeros(drawimg.size(), CV_8UC1);
-
-	Point p1(424 * factorx, 264 * factory);
-	Point p2(524 * factorx, 264 * factory);
-	Point p8(331 * factorx, 474 * factory);
-	Point p3(764 * factorx, 474 * factory);
-	Point p7(2 * factorx, 474 * factory);
-	Point p4(958 * factorx, 474 * factory);
-	Point p6(2 * factorx, 718 * factory);
-	Point p5(958 * factorx, 718 * factory);
-	std::vector<Point> contour;
-	contour.push_back(p1);
-	contour.push_back(p2);
-	contour.push_back(p3);
-	contour.push_back(p4);
-	contour.push_back(p5);
-	contour.push_back(p6);
-	contour.push_back(p7);
-	contour.push_back(p8);
-
-
-	std::vector<std::vector<Point> > contours;
-	contours.push_back(contour);
-	cv::drawContours(mask, contours, -1, cv::Scalar::all(255), CV_FILLED);
-
-		
-
 	//Declare a VideoCapture object to store incoming frame and initialize it
-	cv::VideoCapture capture("../data/out_xuewei.mp4");
+	cv::VideoCapture capture("../data/out.mp4");
 	
 	capture.read(orig_img);
 	//orig_img = cv::imread("../data/back1.jpg");
@@ -489,49 +446,23 @@ int main()
 	//cv::GaussianBlur(orig_img, orig_img, cv::Size(3,3), 3.0);
 
 	//Initializing the binary image with the same dimensions as original image
-	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8UC1, cv::Scalar(0));
+	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8U, cv::Scalar(0));
 
 	double value[3];
 	
-	
+
 	//Step 1: initializing with one gaussian for the first time and keeping the no. of models as 1
-
-	orig_img.copyTo(cleanframe, mask);
-	//这里将cleanframe 初始化
-
-	//cv::imwrite("../data/shiyan.jpg", cleanframe);
-	
-	//Vec3b  *valus = cleanframe.ptr<Vec3b>(465, 348);
-	//printf("pixels,(%d,%d,%d)", valus[0][0], valus[0][1], valus[0][2]);
-	//Vec3b valuss = cleanframe.at<Vec3b>(465, 348);
-	//printf("pixelss,(%d,%d,%d)", valuss[0],valuss[1],valuss[2]);
-	//cv::Vec3f val;
-
+	cv::Vec3f val;
 	uchar* r_ptr;
 	uchar* b_ptr;
-	
-	// 初始化的是第一帧的全体图像像素，这里要注意
-	// 非第一帧训练过程中，当后面来的像素值时，与前面已有的高斯的均值比较，
-	// 如果该像素点的值与其模型均值差在3倍的方差内，则任务属于该高斯。此时用如下方程进行更新：
-
-	for (i = 0; i < cleanframe.rows; i++)
+	for (i = 0; i < orig_img.rows; i++)
 	{
-		r_ptr = cleanframe.ptr<uchar>(i);
-		
-		for (j = 0; j < cleanframe.cols; j++)
+		r_ptr = orig_img.ptr(i);
+		for (j = 0; j < orig_img.cols; j++)
 		{
-			// 将彩图的每一个像素的三通道数值放进去创造Node
-			
-		/*	Vec3b pixels = cleanframe.at<Vec3b>(i, j);
-			if (pixels[0]==0 && pixels[1]==0 && pixels[2]==0)
-			{
-				continue;
-			}*/
 
 			N_ptr = Create_Node(*r_ptr, *(r_ptr + 1), *(r_ptr + 2));
 			if (N_ptr != NULL) {
-				// 为每一个像素初始化的时候权重设为1，均值，方差都初始化完毕
-
 				N_ptr->pixel_s->weight = 1.0;
 				Insert_End_Node(N_ptr);
 			}
@@ -548,16 +479,16 @@ int main()
 
 	int nL, nC;
 
-	if (cleanframe.isContinuous())
+	if (orig_img.isContinuous() == true)
 	{
 		nL = 1;
-		nC = cleanframe.rows * cleanframe.cols * cleanframe.channels();
+		nC = orig_img.rows * orig_img.cols * orig_img.channels();
 	}
 
 	else
 	{
-		nL = cleanframe.rows;
-		nC = cleanframe.cols * cleanframe.channels();
+		nL = orig_img.rows;
+		nC = orig_img.cols * orig_img.channels();
 	}
 
 	double del[3], mal_dist;
@@ -646,23 +577,18 @@ int main()
 		{
 			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 		}
-
-		orig_img.copyTo(cleanframe, mask);
-	
-
 		//break;
 		int count = 0;
 		int count1 = 0;
-
 
 
 		N_ptr = N_start;
 		duration = static_cast<double>(cv::getTickCount());
 		for (i = 0; i < nL; i++)
 		{
-			r_ptr = cleanframe.ptr<uchar>(i);
+			r_ptr = orig_img.ptr(i);
 			// 二值化的图的每个像素点的地址指针
-			b_ptr = bin_img.ptr<uchar>(i);
+			b_ptr = bin_img.ptr(i);
 
 			for (j = 0; j < nC; j += 3)
 			{
@@ -670,25 +596,15 @@ int main()
 				sum1 = 0.0;
 				close = false;
 				background = 0;
-
 				rVal = *(r_ptr++);
 				gVal = *(r_ptr++);
 				bVal = *(r_ptr++);
-
-				if (rVal==0 && gVal==0 &&bVal==0)
-				{
-					background = 0;
-					*b_ptr++ = background;
-					continue;
-				}
-				
-
 				start = N_ptr->pixel_s;
 				rear = N_ptr->pixel_r;
 				ptr = start;
 
 				temp_ptr = NULL;
-				// 每一个像素的最大高斯模型数目为4 
+
 				if (N_ptr->no_of_components > 4)
 				{
 					Delete_gaussian(rear);
@@ -697,6 +613,8 @@ int main()
 
 				for (k = 0; k < N_ptr->no_of_components; k++)
 				{
+
+
 					weight = ptr->weight;
 					mult = alpha / weight;
 					weight = weight * alpha_bar + prune;
@@ -831,8 +749,6 @@ int main()
 			}
 		}
 
-		imshow("bin before process", bin_img);
-		waitKey(5);
 
 		// xuewei add some Morphology relevant processing
 	
@@ -862,11 +778,6 @@ int main()
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
 		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
 
-
-		// 显示形态学操作之后的bin图
-		cv::imshow("after xingtai", bin_img);
-		waitKey(10);
-
 		cv::findContours(bin_img, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		std::vector<RotatedRect> box(contours.size());
 		std::vector<Rect> boundRect(contours.size());
@@ -874,6 +785,9 @@ int main()
 
 		Point2f m_rect[4];
 
+		
+		
+		
 		BoundingBox m_BBtemp;
 		memset(&m_BBtemp, 0, sizeof(BoundingBox));
 		
@@ -909,7 +823,7 @@ int main()
 		std::cout << "begin to draw yolov5 detections'results!!" << std::endl;
 		for (; iters_b != iter_e; iters_b++)
 		{
-			rectangle(cleanframe,
+			rectangle(orig_img,
 				Point((int)iters_b->x,
 					(int)iters_b->y),
 				Point((int)iters_b->x + (int)iters_b->width,
@@ -930,7 +844,7 @@ int main()
 			}
 			else
 			{
-				//rectangle(cleanframe, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
+				//rectangle(orig_img, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
 				/*	m_BBtemp.x = boundRect[i].x;
 					m_BBtemp.y = boundRect[i].y;
 					m_BBtemp.w = boundRect[i].width;
@@ -938,7 +852,7 @@ int main()
 					m_BBtemp.score = 1;
 					m_BBtemp.m_status = UnkownObj;
 					v_bbnd.push_back(m_BBtemp);*/
-				//circle(cleanframe, Point(box[i].center.x, box[i].center.y), 5, Scalar(0, 255, 0), -1, 8);
+				//circle(orig_img, Point(box[i].center.x, box[i].center.y), 5, Scalar(0, 255, 0), -1, 8);
 				box[i].points(m_rect);
 
 				m_BBtemp.x = m_rect[0].x;
@@ -953,7 +867,7 @@ int main()
 				// keep 最小外接矩形
 				for (int j = 0; j < 4; j++)
 				{
-					//line(cleanframe, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
+					//line(orig_img, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
 				}
 			}
 		}
@@ -970,7 +884,7 @@ int main()
 				&& intersectionOverUnion(v_bbnd[i], yolov5_currentobj[indexofmatch]) >= 0.05)
 			{
 				v_bbnd[i].m_status = Ejected;
-				rectangle(cleanframe,
+				rectangle(orig_img,
 					Point(v_bbnd[i].x, v_bbnd[i].y),
 					Point(v_bbnd[i].x + v_bbnd[i].width,
 						v_bbnd[i].y + v_bbnd[i].height),
@@ -978,7 +892,7 @@ int main()
 
 				sprintf(yichu, "Ejected");
 
-				cv::putText(cleanframe, yichu,
+				cv::putText(orig_img, yichu,
 					cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
 						v_bbnd[i].y + v_bbnd[i].height + 10),
 					1,
@@ -991,7 +905,7 @@ int main()
 			else
 			{
 				v_bbnd[i].m_status = Suspected;
-				rectangle(cleanframe,
+				rectangle(orig_img,
 					Point(v_bbnd[i].x, v_bbnd[i].y),
 					Point(v_bbnd[i].x + v_bbnd[i].width,
 						v_bbnd[i].y + v_bbnd[i].height),
@@ -999,7 +913,7 @@ int main()
 
 				sprintf(yichu, "Suspected");
 
-				cv::putText(cleanframe, yichu,
+				cv::putText(orig_img, yichu,
 					cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
 						v_bbnd[i].y + v_bbnd[i].height + 10),
 					1,
@@ -1023,7 +937,7 @@ int main()
 		std::cout << "this is" << count4tracker << "frame" << std::endl;
 		if (count4tracker==253)
 		{
-			cv::imwrite("../data/save1.jpg", cleanframe);
+			cv::imwrite("../data/save1.jpg", orig_img);
 		}
 
 		
@@ -1035,7 +949,7 @@ int main()
 			if (box_index < dt.boxes.size())
 			{
 				BoundingBox b = dt.boxes[box_index];
-				cv::rectangle(cleanframe, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), cv::Scalar(255, 0, 100), 2);
+				cv::rectangle(orig_img, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), cv::Scalar(255, 0, 100), 2);
 
 				std::string s_status;
 				cv::Scalar blue(255, 0, 0);
@@ -1046,17 +960,17 @@ int main()
 				case Moving:
 					s_status = "Moving";
 					sprintf_s(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					//cv::putText(cleanframe, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, blue, 1);
+					//cv::putText(orig_img, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, blue, 1);
 					break;
 				case Stopping:
 					s_status = "Stopping";
 					sprintf_s(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					//cv::putText(cleanframe, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
+					//cv::putText(orig_img, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
 					break;
 				case Splittingobj:
 					s_status = "Splittingobj";
 					sprintf_s(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					cv::putText(cleanframe, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1, red, 1);
+					cv::putText(orig_img, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1, red, 1);
 					break;
 				}
 				
@@ -1072,7 +986,7 @@ int main()
 		std::cout << "\n counts : " << count;
 		cv::namedWindow("orig", CV_WINDOW_NORMAL);
 		//cv::namedWindow("gp", CV_WINDOW_NORMAL);
-		cv::imshow("orig", cleanframe);
+		cv::imshow("orig", orig_img);
 		//cv::imshow("gp", bin_img);
 	
 		
@@ -1091,7 +1005,7 @@ int main()
 }
 
 
-int main_01()
+int main()
 {
 	cv::Mat background = imread("../data/back.jpg");
 	cv::Mat object = imread("../data/object.jpg");
