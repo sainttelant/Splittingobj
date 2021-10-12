@@ -15,12 +15,15 @@
 #include <vector>
 // iou relevant
 #include "IOUT.h"
+#include "../FrameDiff/ImageAnalysis.hpp"
 
 #include "../FrameDiff/FrameDiff.h"
+
 
 #define yolov5 0
 #define debug 0
 
+// 比960X720 等比缩小3倍
 #define RESIZE_WIDTH 960
 #define RESIZE_HEIGHT 720
 using namespace cv;
@@ -48,7 +51,7 @@ struct gaussian
 	double weight;								// Represents the measure to which a particular component defines the pixel value
 	gaussian* Next;
 	gaussian* Previous;
-} *ptr, * start, * rear, * g_temp, * save, * next, * previous, * nptr, * temp_ptr;
+} *ptr, * start, * rear, * g_temp, * save, * gnext, * previous, * nptr, * temp_ptr;
 
 struct MYNode
 {
@@ -181,7 +184,7 @@ void Insert_End_gaussian(gaussian* nptr)
 gaussian* Delete_gaussian(gaussian* nptr)
 {
 	previous = nptr->Previous;
-	next = nptr->Next;
+	gnext = nptr->Next;
 	if (start != NULL)
 	{
 		if (nptr == start && nptr == rear)
@@ -191,8 +194,8 @@ gaussian* Delete_gaussian(gaussian* nptr)
 		}
 		else if (nptr == start)
 		{
-			next->Previous = NULL;
-			start = next;
+			gnext->Previous = NULL;
+			start = gnext;
 			delete nptr;
 			nptr = start;
 		}
@@ -205,10 +208,10 @@ gaussian* Delete_gaussian(gaussian* nptr)
 		}
 		else
 		{
-			previous->Next = next;
-			next->Previous = previous;
+			previous->Next = gnext;
+			gnext->Previous = previous;
 			delete nptr;
-			nptr = next;
+			nptr = gnext;
 		}
 	}
 	else
@@ -415,17 +418,28 @@ void removePepperNoise(Mat& mask)
 }
 
 
-int main_01()
+int main()
 {
+
+	//实验图片相似度的算法
+
+	/*ImageAnalysis imagean;
+	cv::Mat imgsim, imgsim1;
+	imgsim = cv::imread("../data/1.png");
+	imgsim1 = cv::imread("../data/2.png");
+	bool moved = imagean.BemovedOut(imgsim, imgsim1,0,0);*/
+
 	// 开一个文件，将yolov5识别的结果写入
 #if yolov5
 
 	std::ofstream outfile("../results/yolov5.txt");
 
 #else
-	std::ifstream infile("../results/yolov5_out.txt");
+	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
-	read_detections(infile, yolov5_detections);
+	// 修改读取框图倍率第三个参数
+
+	read_detections(infile, yolov5_detections,1);
 
 #endif
 	int i, j, k;
@@ -433,10 +447,10 @@ int main_01()
 
 
 	// Declare matrices to store original and resultant binary image
-	cv::Mat orig_img, bin_img;
+	cv::Mat orig_img,drawingorig, bin_img;
 	
 	//Declare a VideoCapture object to store incoming frame and initialize it
-	cv::VideoCapture capture("../data/out.mp4");
+	cv::VideoCapture capture("../data/out_xuewei.mp4");
 	
 	capture.read(orig_img);
 	//orig_img = cv::imread("../data/back1.jpg");
@@ -517,6 +531,12 @@ int main_01()
 
 	// 总帧的追踪结果
 	std::vector< Track > iou_tracks;
+	int splitID=1;
+
+	vector<xueweiImage::SplitObject> SplitObjForSure;
+
+
+
 	float stationary_threshold = 0.90;		// low detection threshold,修改一下，这里改成大于这个的是静态物体
 	float lazy_threshold = 0.70;
 	float sigma_h = 0.7;		// high detection threshold,优选detection，检测的得分，其实这里面没有作用，不是通过classify的来的
@@ -580,6 +600,10 @@ int main_01()
 		//break;
 		int count = 0;
 		int count1 = 0;
+
+		iou_tracks.clear();
+
+		orig_img.copyTo(drawingorig);
 
 
 		N_ptr = N_start;
@@ -716,17 +740,17 @@ int main_01()
 					else
 					{
 						//count++;
-						next = temp_ptr->Next;
+						gnext = temp_ptr->Next;
 						previous = temp_ptr->Previous;
 						if (start == previous)
 							start = temp_ptr;
-						previous->Next = next;
+						previous->Next = gnext;
 						temp_ptr->Previous = previous->Previous;
 						temp_ptr->Next = previous;
 						if (previous->Previous != NULL)
 							previous->Previous->Next = temp_ptr;
-						if (next != NULL)
-							next->Previous = previous;
+						if (gnext != NULL)
+							gnext->Previous = previous;
 						else
 							rear = previous;
 						previous->Previous = temp_ptr;
@@ -748,6 +772,10 @@ int main_01()
 				N_ptr = N_ptr->Next;
 			}
 		}
+
+		imshow("before xingtai", bin_img);
+		waitKey(5);
+
 
 
 		// xuewei add some Morphology relevant processing
@@ -778,6 +806,9 @@ int main_01()
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
 		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
 
+		cv::namedWindow("after xingtai", WINDOW_NORMAL);
+		imshow("after xingtai", bin_img);
+		waitKey(5);
 		cv::findContours(bin_img, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		std::vector<RotatedRect> box(contours.size());
 		std::vector<Rect> boundRect(contours.size());
@@ -785,8 +816,6 @@ int main_01()
 
 		Point2f m_rect[4];
 
-		
-		
 		
 		BoundingBox m_BBtemp;
 		memset(&m_BBtemp, 0, sizeof(BoundingBox));
@@ -823,7 +852,7 @@ int main_01()
 		std::cout << "begin to draw yolov5 detections'results!!" << std::endl;
 		for (; iters_b != iter_e; iters_b++)
 		{
-			rectangle(orig_img,
+			rectangle(drawingorig,
 				Point((int)iters_b->x,
 					(int)iters_b->y),
 				Point((int)iters_b->x + (int)iters_b->width,
@@ -838,13 +867,13 @@ int main_01()
 		{
 			box[i] = minAreaRect(Mat(contours[i]));
 			boundRect[i] = cv::boundingRect(Mat(contours[i]));
-			if (box[i].size.width < 10 || box[i].size.height<10)
+			if (box[i].size.width < 15 || box[i].size.height<15)
 			{
 				continue;
 			}
 			else
 			{
-				//rectangle(orig_img, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
+				//rectangle(drawingorig, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
 				/*	m_BBtemp.x = boundRect[i].x;
 					m_BBtemp.y = boundRect[i].y;
 					m_BBtemp.w = boundRect[i].width;
@@ -884,7 +913,7 @@ int main_01()
 				&& intersectionOverUnion(v_bbnd[i], yolov5_currentobj[indexofmatch]) >= 0.05)
 			{
 				v_bbnd[i].m_status = Ejected;
-				rectangle(orig_img,
+				rectangle(drawingorig,
 					Point(v_bbnd[i].x, v_bbnd[i].y),
 					Point(v_bbnd[i].x + v_bbnd[i].width,
 						v_bbnd[i].y + v_bbnd[i].height),
@@ -892,7 +921,7 @@ int main_01()
 
 				sprintf(yichu, "Ejected");
 
-				cv::putText(orig_img, yichu,
+				cv::putText(drawingorig, yichu,
 					cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
 						v_bbnd[i].y + v_bbnd[i].height + 10),
 					1,
@@ -905,15 +934,15 @@ int main_01()
 			else
 			{
 				v_bbnd[i].m_status = Suspected;
-				rectangle(orig_img,
+				rectangle(drawingorig,
 					Point(v_bbnd[i].x, v_bbnd[i].y),
 					Point(v_bbnd[i].x + v_bbnd[i].width,
 						v_bbnd[i].y + v_bbnd[i].height),
 					Scalar(0, 150, 50), 2, 8);
 
-				sprintf(yichu, "Suspected");
+				sprintf(yichu, "Split_Unsure");
 
-				cv::putText(orig_img, yichu,
+				cv::putText(drawingorig, yichu,
 					cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
 						v_bbnd[i].y + v_bbnd[i].height + 10),
 					1,
@@ -935,21 +964,18 @@ int main_01()
 			std::cout << "Last Track ID > " << iou_tracks.back().id << std::endl;
 		}
 		std::cout << "this is" << count4tracker << "frame" << std::endl;
-		if (count4tracker==253)
-		{
-			cv::imwrite("../data/save1.jpg", orig_img);
-		}
 
 		
 
 		char info[256];
-		for (auto dt : iou_tracks)
+		for (auto &dt : iou_tracks)
 		{
 			int box_index = count4tracker - dt.start_frame;
 			if (box_index < dt.boxes.size())
 			{
 				BoundingBox b = dt.boxes[box_index];
-				cv::rectangle(orig_img, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), cv::Scalar(255, 0, 100), 2);
+				
+				cv::rectangle(drawingorig, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), cv::Scalar(255, 0, 100), 2);
 
 				std::string s_status;
 				cv::Scalar blue(255, 0, 0);
@@ -960,23 +986,73 @@ int main_01()
 				case Moving:
 					s_status = "Moving";
 					sprintf_s(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					//cv::putText(orig_img, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, blue, 1);
+					//cv::putText(drawingorig, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, blue, 1);
 					break;
 				case Stopping:
 					s_status = "Stopping";
 					sprintf_s(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					//cv::putText(orig_img, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
+					//cv::putText(drawingorig, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
 					break;
-				case Splittingobj:
-					s_status = "Splittingobj";
-					sprintf_s(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					cv::putText(orig_img, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1, red, 1);
+				case Static_Sure:
+
+					if (b.width * b.height > pow(RESIZE_WIDTH*200/960,2))
+					{
+						break;
+					}
+
+					s_status = "SplitObj_Sure";
+					sprintf_s(info, "ID:%d_%s", dt.id,  s_status.c_str());
+					cv::putText(drawingorig, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1.5, red, 1);
+					
+					xueweiImage::SplitObject tmpSplitObj;
+					tmpSplitObj.ID = splitID;
+					tmpSplitObj.m_postion.x = static_cast<int>(b.x);
+					tmpSplitObj.m_postion.y = static_cast<int>(b.y);
+					tmpSplitObj.m_postion.width = static_cast<int>(b.width);
+					tmpSplitObj.m_postion.height = static_cast<int>(b.height);
+					tmpSplitObj.imgdata = orig_img(tmpSplitObj.m_postion);
+
+
+					xueweiImage::ImageAnalysis Analysis;
+					char display[256];
+					// 这里还要确定有没有重复往里写
+					if (!SplitObjForSure.empty())
+					{
+						for (int i= 0; i < SplitObjForSure.size(); i++)
+						{
+							sprintf(display, "patch_%d ", SplitObjForSure[i].ID);
+							cv::namedWindow(display, WINDOW_NORMAL);
+							cv::imshow(display, SplitObjForSure[i].imgdata);
+							cv::waitKey(10);
+						}
+
+
+						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
+						if (index != -1 \
+							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
+						{
+								
+						}
+						else
+						{
+							SplitObjForSure.push_back(tmpSplitObj);
+							splitID++;
+						}
+						
+					}
+					else
+					{
+						SplitObjForSure.push_back(tmpSplitObj);
+						splitID++;
+					}
+					
 					break;
 				}
 				
 			}
-			
 		}
+
+
 
 		count4tracker++;
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
@@ -984,9 +1060,9 @@ int main_01()
 		
 		std::cout << "\n per frame duration :" << duration;
 		std::cout << "\n counts : " << count;
-		cv::namedWindow("orig", CV_WINDOW_NORMAL);
+		cv::namedWindow("orig", WINDOW_NORMAL);
 		//cv::namedWindow("gp", CV_WINDOW_NORMAL);
-		cv::imshow("orig", orig_img);
+		cv::imshow("orig", drawingorig);
 		//cv::imshow("gp", bin_img);
 	
 		
@@ -1005,7 +1081,7 @@ int main_01()
 }
 
 
-int main()
+int main_01()
 {
 	cv::Mat background = imread("../data/back.jpg");
 	cv::Mat object = imread("../data/object.jpg");
@@ -1014,7 +1090,7 @@ int main()
 
 	std::ifstream infile("../results/yolov5_out.txt");
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
-	read_detections(infile, yolov5_detections);
+	read_detections(infile, yolov5_detections,3);
 
 
 	cv::resize(background, background, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
@@ -1281,8 +1357,8 @@ int main()
 					sprintf(info, "ID:%d_Ap:%d_%s", dt.m_ID, dt.count, s_status.c_str());
 					cv::putText(cleanframe, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1, blue, 1);
 					break;
-				case Splittingobj:
-					s_status = "Splittingobj";
+				case Static_Sure:
+					s_status = "Static";
 					cv::rectangle(cleanframe, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), red, 2);
 					sprintf(info, "ID:%d_Ap:%d_%s", dt.m_ID, dt.count, s_status.c_str());
 					cv::putText(cleanframe, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1, red, 1);

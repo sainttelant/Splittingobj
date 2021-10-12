@@ -40,7 +40,7 @@ struct BoundingBox
 enum TrackStatus
 {
 	Moving,
-	Splittingobj,
+	Static_Sure,
 	Stopping,
 	Unkown,
 	
@@ -51,7 +51,7 @@ struct Track
 	std::vector<BoundingBox> boxes;
 	float max_score;
 	int start_frame;
-	int id;
+	int id; // 这个是追踪的id
 	int total_appearing;
 	int stationary_count;
 	TrackStatus status;

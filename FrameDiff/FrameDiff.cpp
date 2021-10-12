@@ -130,6 +130,7 @@ bool Anomaly::PointsinRegion(std::vector<cv::Point>& pt, const std::vector<cv::P
 	return false;
 }
 
+
  void Anomaly::UpdateBack(cv::Mat& background, bool update)
 {
 	if (!update)
@@ -281,4 +282,7 @@ bool Anomaly::PointsinRegion(std::vector<cv::Point>& pt, const std::vector<cv::P
 
 		}
 	}
+
+
+
 }

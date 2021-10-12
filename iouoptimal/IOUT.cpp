@@ -197,7 +197,7 @@ std::vector< Track > track_iou(float status_threshold, float lazy_threshold, \
 				{
 					if (track.first_stationary && iou_score > lazy_threshold+0.15 && iou_score < status_threshold+0.05)
 					{
-						track.status = Splittingobj;
+						track.status = Static_Sure;
 						track.stationary_count--;
 					}
 					if (iou_score > status_threshold+0.05)
@@ -214,14 +214,14 @@ std::vector< Track > track_iou(float status_threshold, float lazy_threshold, \
 
 					if (track.stationary_count > 22)
 					{
-						track.status = Splittingobj;
+						track.status = Static_Sure;
 					}
 				}
 				else
 				{
 					if (track.first_stationary && iou_score > lazy_threshold-0.15 && iou_score < status_threshold-0.05)
 					{
-						track.status = Splittingobj;
+						track.status = Static_Sure;
 						track.stationary_count--;
 					}
 					if (iou_score > status_threshold-0.05)
@@ -238,7 +238,7 @@ std::vector< Track > track_iou(float status_threshold, float lazy_threshold, \
 
 					if (track.stationary_count > 22)
 					{
-						track.status = Splittingobj;
+						track.status = Static_Sure;
 					}
 				}
 				

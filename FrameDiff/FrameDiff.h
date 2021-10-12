@@ -18,7 +18,8 @@ class Anomaly
 		bool PointsinRegion(std::vector<cv::Point>& pt, const std::vector<cv::Point>& polygons);
 		void UpdateBack(cv::Mat& background, bool update);
 		void postprocess(std::vector<std::vector<LeftObjects>> &m_cadidateset);
-	
+		
+		
 	protected:
 	private:
 		

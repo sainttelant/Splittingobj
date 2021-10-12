@@ -18,7 +18,7 @@
 //using namespace std;
 
 // Read all the provided detections on a vector of vectors
-void read_detections(std::ifstream& file, std::vector< std::vector<BoundingBox> >& detections)
+void read_detections(std::ifstream& file, std::vector< std::vector<BoundingBox> >& detections,int factor=1)
 {
 	std::vector<BoundingBox> frame_detections;
 	int actualFrame = 1;
@@ -35,9 +35,9 @@ void read_detections(std::ifstream& file, std::vector< std::vector<BoundingBox> 
 			frame_detections.clear();
 		}
 		BoundingBox b = { 
-			std::stof((*loop)[2]), std::stof((*loop)[3]),
-			std::stof((*loop)[4]), std::stof((*loop)[5]), 
-			std::stof((*loop)[6]) };
+			std::stof((*loop)[2])/factor, std::stof((*loop)[3])/factor,
+			std::stof((*loop)[4])/factor, std::stof((*loop)[5])/factor, 
+			std::stof((*loop)[6])/factor };
 		frame_detections.push_back(b);
 	}
 	// Last detections are not added in the loop, so we add them here
