@@ -26,6 +26,8 @@
 // 比960X720 等比缩小3倍
 #define RESIZE_WIDTH 960
 #define RESIZE_HEIGHT 720
+
+#define CHECK_INTERVAL 300
 using namespace cv;
 //using namespace std;
 
@@ -535,6 +537,7 @@ int main()
 
 	vector<xueweiImage::SplitObject> SplitObjForSure;
 
+	xueweiImage::ImageAnalysis Analysis;
 
 
 	float stationary_threshold = 0.90;		// low detection threshold,修改一下，这里改成大于这个的是静态物体
@@ -1010,23 +1013,18 @@ int main()
 					tmpSplitObj.m_postion.y = static_cast<int>(b.y);
 					tmpSplitObj.m_postion.width = static_cast<int>(b.width);
 					tmpSplitObj.m_postion.height = static_cast<int>(b.height);
+					tmpSplitObj.firstshowframenum = count4tracker;
 					tmpSplitObj.imgdata = orig_img(tmpSplitObj.m_postion);
 
 
-					xueweiImage::ImageAnalysis Analysis;
+					
 					char display[256];
 					// 这里还要确定有没有重复往里写
 					if (!SplitObjForSure.empty())
 					{
-						for (int i= 0; i < SplitObjForSure.size(); i++)
-						{
-							sprintf(display, "patch_%d ", SplitObjForSure[i].ID);
-							cv::namedWindow(display, WINDOW_NORMAL);
-							cv::imshow(display, SplitObjForSure[i].imgdata);
-							cv::waitKey(10);
-						}
+						
 
-
+						// 这里做的是判断是否有新的抛洒物进来
 						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
 						if (index != -1 \
 							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
@@ -1053,6 +1051,41 @@ int main()
 		}
 
 
+		// 在每个循环外面显示 抛洒物
+		// 这里做的是校验是否原地还有抛洒物，没有的话，迭代器删除，这个应该在外面做
+
+
+		char displayindex[256];
+		for (vector <xueweiImage::SplitObject>::iterator iter = SplitObjForSure.begin(); iter < SplitObjForSure.end();)
+		{
+			sprintf(displayindex, "patch_%d ", iter->ID);
+			cv::namedWindow(displayindex, WINDOW_NORMAL);
+			cv::imshow(displayindex, iter->imgdata);
+			cv::waitKey(5);
+			int timeinterval = count4tracker - iter->firstshowframenum;
+			if (timeinterval > CHECK_INTERVAL)
+			{
+				printf("it is needed to judge whether the obj[%d] is moved out \n", iter->ID);
+				// 
+				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+				if (movedout)
+				{
+					printf("yes, obj[%d] has been moved out \n", iter->ID);
+					iter = SplitObjForSure.erase(iter);
+				}
+			}
+			else
+			{
+				iter++;
+			}
+		}
+
+		
+		
+			
+		
+
 
 		count4tracker++;
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
@@ -1065,9 +1098,9 @@ int main()
 		cv::imshow("orig", drawingorig);
 		//cv::imshow("gp", bin_img);
 	
-		
 		cv::waitKey(5);
 	}
+
 
 	
 

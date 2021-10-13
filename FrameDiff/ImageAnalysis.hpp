@@ -17,6 +17,7 @@ namespace xueweiImage
 	{
 		cv::Rect m_postion;
 		cv::Mat imgdata;
+		unsigned int firstshowframenum;
 		int ID;
 	};
 
