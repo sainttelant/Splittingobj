@@ -24,8 +24,8 @@
 #define debug 0
 
 // 比960X720 等比缩小3倍
-#define RESIZE_WIDTH 960
-#define RESIZE_HEIGHT 720
+#define RESIZE_WIDTH 320
+#define RESIZE_HEIGHT 240
 
 #define CHECK_INTERVAL 10
 using namespace cv;
@@ -441,7 +441,8 @@ int main()
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
 	// 修改读取框图倍率第三个参数
 
-	read_detections(infile, yolov5_detections,1);
+	int scalefactor = 960/RESIZE_WIDTH;
+	read_detections(infile, yolov5_detections,scalefactor);
 
 #endif
 	int i, j, k;
@@ -871,7 +872,7 @@ int main()
 		{
 			box[i] = minAreaRect(Mat(contours[i]));
 			boundRect[i] = cv::boundingRect(Mat(contours[i]));
-			if (box[i].size.width < 15 || box[i].size.height<15)
+			if (box[i].size.width < 15*RESIZE_WIDTH/960 || box[i].size.height<15*RESIZE_WIDTH/960)
 			{
 				continue;
 			}
