@@ -19,6 +19,9 @@ namespace xueweiImage
 		cv::Mat imgdata;
 		unsigned int firstshowframenum;
 		int ID;
+		bool moved;
+		bool haschecked;
+		int checktimes;
 	};
 
 

@@ -27,7 +27,7 @@
 #define RESIZE_WIDTH 960
 #define RESIZE_HEIGHT 720
 
-#define CHECK_INTERVAL 300
+#define CHECK_INTERVAL 10
 using namespace cv;
 //using namespace std;
 
@@ -450,6 +450,7 @@ int main()
 
 	// Declare matrices to store original and resultant binary image
 	cv::Mat orig_img,drawingorig, bin_img;
+	cv::Mat signalDraw(RESIZE_HEIGHT, RESIZE_WIDTH, CV_8UC3);
 	
 	//Declare a VideoCapture object to store incoming frame and initialize it
 	cv::VideoCapture capture("../data/out_xuewei.mp4");
@@ -776,9 +777,8 @@ int main()
 			}
 		}
 
-		imshow("before xingtai", bin_img);
-		waitKey(5);
-
+		//imshow("before xingtai", bin_img);
+		//waitKey(5);
 
 
 		// xuewei add some Morphology relevant processing
@@ -809,9 +809,10 @@ int main()
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
 		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
 
-		cv::namedWindow("after xingtai", WINDOW_NORMAL);
+		/*cv::namedWindow("after xingtai", WINDOW_NORMAL);
 		imshow("after xingtai", bin_img);
-		waitKey(5);
+		waitKey(5);*/
+
 		cv::findContours(bin_img, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		std::vector<RotatedRect> box(contours.size());
 		std::vector<Rect> boundRect(contours.size());
@@ -1013,17 +1014,16 @@ int main()
 					tmpSplitObj.m_postion.y = static_cast<int>(b.y);
 					tmpSplitObj.m_postion.width = static_cast<int>(b.width);
 					tmpSplitObj.m_postion.height = static_cast<int>(b.height);
+					tmpSplitObj.moved = false;
 					tmpSplitObj.firstshowframenum = count4tracker;
 					tmpSplitObj.imgdata = orig_img(tmpSplitObj.m_postion);
-
-
+					tmpSplitObj.haschecked = false;
+					tmpSplitObj.checktimes = 1;
 					
 					char display[256];
 					// 这里还要确定有没有重复往里写
 					if (!SplitObjForSure.empty())
 					{
-						
-
 						// 这里做的是判断是否有新的抛洒物进来
 						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
 						if (index != -1 \
@@ -1055,49 +1055,91 @@ int main()
 		// 这里做的是校验是否原地还有抛洒物，没有的话，迭代器删除，这个应该在外面做
 
 
-		char displayindex[256];
+		char displayindex[256],judge[256];
+		int offset = 1; 
+		// for  destroy corresponding patch 
+		char destroypatchname[256];
 		for (vector <xueweiImage::SplitObject>::iterator iter = SplitObjForSure.begin(); iter < SplitObjForSure.end();)
 		{
-			sprintf(displayindex, "patch_%d ", iter->ID);
-			cv::namedWindow(displayindex, WINDOW_NORMAL);
-			cv::imshow(displayindex, iter->imgdata);
-			cv::waitKey(5);
 			int timeinterval = count4tracker - iter->firstshowframenum;
-			if (timeinterval > CHECK_INTERVAL)
+			if (timeinterval > CHECK_INTERVAL && !iter->haschecked)
 			{
-				printf("it is needed to judge whether the obj[%d] is moved out \n", iter->ID);
+				/*sprintf(judge,"judge whether the obj[%d] is moved out \n", iter->ID);*/
 				// 
 				cv::Mat currentpatchhere = orig_img(iter->m_postion);
 				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+				iter->haschecked = true;
+				iter->checktimes++;
 				if (movedout)
 				{
-					printf("yes, obj[%d] has been moved out \n", iter->ID);
+					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
+					cv::putText(drawingorig, judge, cv::Point(200, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+					offset++;
+					sprintf(destroypatchname, "patch_%d", iter->ID);
+					cv::destroyAllWindows();
 					iter = SplitObjForSure.erase(iter);
+				}
+				else
+				{
+					sprintf(judge, "obj[%d] is still there, check first times \n", iter->ID);
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+					offset++;
+					iter->moved = false;
+					iter++;
+				}
+			}
+			else if (iter->haschecked && timeinterval>(CHECK_INTERVAL*iter->checktimes))
+			{
+				cv::Mat currentpatchhere = orig_img(iter->m_postion);
+				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+				iter->checktimes++;
+				if (movedout)
+				{
+					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+					offset++;
+					sprintf(destroypatchname, "patch_%d", iter->ID);
+					cv::destroyAllWindows();
+					iter = SplitObjForSure.erase(iter);
+				}
+				else
+				{
+					sprintf(judge, "obj[%d] is still there, check[%d] times \n", iter->ID,iter->checktimes);
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+					iter->moved = false;
+					iter++;
 				}
 			}
 			else
 			{
+				if (CHECK_INTERVAL>timeinterval)
+				{
+					sprintf(judge, "ID_%d_%d_fleft",iter->ID, CHECK_INTERVAL - timeinterval);
+				}
+				else
+				{
+					if (!iter->haschecked)
+					{
+						sprintf(judge, "ID_%d to check now", iter->ID);
+					}
+				}
+				cv::putText(drawingorig,judge,cv::Point(8,5+(100*offset)),3,1.25,cv::Scalar(0,0,255));
+				offset++;
+				sprintf(displayindex, "patch_%d ", iter->ID);
+				cv::namedWindow(displayindex, WINDOW_NORMAL);
+				cv::imshow(displayindex, iter->imgdata);
+				cv::waitKey(5);
 				iter++;
 			}
 		}
 
-		
-		
-			
-		
-
-
 		count4tracker++;
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
 		duration /= cv::getTickFrequency();
-		
 		std::cout << "\n per frame duration :" << duration;
 		std::cout << "\n counts : " << count;
 		cv::namedWindow("orig", WINDOW_NORMAL);
-		//cv::namedWindow("gp", CV_WINDOW_NORMAL);
 		cv::imshow("orig", drawingorig);
-		//cv::imshow("gp", bin_img);
-	
 		cv::waitKey(5);
 	}
 
