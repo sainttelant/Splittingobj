@@ -9,10 +9,6 @@ using namespace cv;
 
 namespace xueweiImage
 {
-
-
-	
-
 	struct SplitObject
 	{
 		cv::Rect m_postion;

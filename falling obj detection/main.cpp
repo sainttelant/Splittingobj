@@ -24,8 +24,8 @@
 #define debug 0
 
 // 比960X720 等比缩小3倍
-#define RESIZE_WIDTH 320
-#define RESIZE_HEIGHT 240
+#define RESIZE_WIDTH 480
+#define RESIZE_HEIGHT 360
 
 #define CHECK_INTERVAL 10
 using namespace cv;
@@ -1083,7 +1083,7 @@ int main()
 				else
 				{
 					sprintf(judge, "obj[%d] is still there, check first times \n", iter->ID);
-					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1, cv::Scalar(100, 0, 200));
 					offset++;
 					iter->moved = false;
 					iter++;
@@ -1139,13 +1139,10 @@ int main()
 		duration /= cv::getTickFrequency();
 		std::cout << "\n per frame duration :" << duration;
 		std::cout << "\n counts : " << count;
-		cv::namedWindow("orig", WINDOW_NORMAL);
+		//cv::namedWindow("orig", WINDOW_NORMAL);
 		cv::imshow("orig", drawingorig);
 		cv::waitKey(5);
 	}
-
-
-	
 
 #if yolov5
 	outfile.close();
