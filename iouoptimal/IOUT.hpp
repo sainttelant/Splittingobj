@@ -9,6 +9,9 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
+#include <iostream>
+#include <fstream>
+
 
 /******************************************************************************
 * STRUCTS
@@ -72,9 +75,15 @@ struct LeftObjects
 
 
 // Return the IoU between two boxes
+
+float intersectionOverUnion_D(BoundingBox box1, BoundingBox box2, std::ofstream& file);
+
 template <typename T>
 inline float intersectionOverUnion(T box1, T box2);
 // Returns the index of the bounding box with the highest IoU
+
+
+int highestIOUF(BoundingBox box, std::vector<BoundingBox> boxes,std::ofstream &file);
 
 template <typename T>
 inline int highestIOU(T box, std::vector<T> boxes);

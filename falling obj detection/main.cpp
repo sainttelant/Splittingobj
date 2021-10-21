@@ -14,7 +14,7 @@
 
 #include <vector>
 // iou relevant
-#include "IOUT.h"
+#include "IOUT.hpp"
 #include "../FrameDiff/ImageAnalysis.hpp"
 
 #include "../FrameDiff/FrameDiff.h"
@@ -438,6 +438,8 @@ int main()
 
 #else
 	std::ifstream infile("../results/yolov5_xuewei_960_720.txt");
+	std::ofstream debuglog("../results/log.txt");
+
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
 	// 修改读取框图倍率第三个参数
 
@@ -909,10 +911,14 @@ int main()
 		// 做一把Yolo和背景法合并filter
 		// step one ,先匹配遍历运动目标与yolo的探测
 
+
+		debuglog << "currentframe:" << count4tracker<<"\t"<< "v_bbnd,s size:" << v_bbnd.size() << endl;
+
 		char yichu[255];
 		for (int i =0; i<v_bbnd.size();i++)
 		{
-			int indexofmatch = highestIOU(v_bbnd[i], yolov5_currentobj);
+			int indexofmatch = highestIOUF(v_bbnd[i], yolov5_currentobj,debuglog);
+			debuglog << "highestIOU's indexofmatch:" << indexofmatch << endl;
 			// 判断是否运动物体与yolov5 结果粘连，如果是，则不计入最终追踪iou
 			if (indexofmatch != -1 \
 				&& intersectionOverUnion(v_bbnd[i], yolov5_currentobj[indexofmatch]) >= 0.05)
@@ -933,7 +939,7 @@ int main()
 					1.2,
 					Scalar(0, 150, 50),
 					1.2, LINE_4);
-
+				debuglog << "v_bbnd erase glue:" <<i<< endl;
 				v_bbnd.erase(v_bbnd.begin() + i);
 			}
 			else
@@ -1135,6 +1141,10 @@ int main()
 		}
 
 		count4tracker++;
+		if (count4tracker>100)
+		{
+			break;
+		}
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
 		duration /= cv::getTickFrequency();
 		std::cout << "\n per frame duration :" << duration;
@@ -1143,7 +1153,7 @@ int main()
 		cv::imshow("orig", drawingorig);
 		cv::waitKey(5);
 	}
-
+	debuglog.close();
 #if yolov5
 	outfile.close();
 #endif
